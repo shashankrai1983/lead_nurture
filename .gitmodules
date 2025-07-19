@@ -1,0 +1,3 @@
+[submodule "dittofeed"]
+	path = dittofeed
+	url = https://github.com/dittofeed/dittofeed.git
