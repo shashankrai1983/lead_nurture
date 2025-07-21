@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: dittofeed
+      POSTGRES_USER: dittofeed
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dittofeed-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dittofeed"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ClickHouse
+  clickhouse:
+    image: clickhouse/clickhouse-server:23-alpine
+    environment:
+      CLICKHOUSE_USER: dittofeed
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-password}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    networks:
+      - dittofeed-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/?query=SELECT%201"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Dittofeed Application
+  dittofeed:
+    image: dittofeed/dittofeed:latest  # You'll need to build this
+    environment:
+      # Authentication
+      AUTH_MODE: single-tenant
+      ADMIN_USER_1_NAME: ${ADMIN_USER_1_NAME:-Ravee}
+      ADMIN_USER_1_PASSWORD: ${ADMIN_USER_1_PASSWORD:-Krishna@125}
+      ADMIN_USER_2_NAME: ${ADMIN_USER_2_NAME:-Ankit}
+      ADMIN_USER_2_PASSWORD: ${ADMIN_USER_2_PASSWORD:-Krishna@125}
+      
+      # Application
+      NODE_ENV: production
+      SECRET_KEY: ${SECRET_KEY}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      
+      # Database
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: dittofeed
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-password}
+      DATABASE_NAME: dittofeed
+      
+      # ClickHouse
+      CLICKHOUSE_HOST: http://clickhouse:8123
+      CLICKHOUSE_USER: dittofeed
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-password}
+      CLICKHOUSE_DATABASE: dittofeed
+      
+      # Application URLs
+      DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:3000}
+      
+      # Bootstrap
+      BOOTSTRAP: true
+      BOOTSTRAP_EVENTS: true
+      BOOTSTRAP_WORKER: true
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PRETTY_LOGS: false
+      
+    ports:
+      - "3000:3000"  # Dashboard
+      - "3001:3001"  # API
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - dittofeed-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - dittofeed_data:/app/data
+
+volumes:
+  postgres_data:
+    driver: local
+  clickhouse_data:
+    driver: local
+  dittofeed_data:
+    driver: local
+
+networks:
+  dittofeed-network:
+    driver: bridge
