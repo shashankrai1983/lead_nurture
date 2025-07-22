@@ -1,0 +1,5 @@
+# WhatsApp MCP Server Requirements
+flask>=3.0.0
+requests>=2.31.0
+sqlite3-utils>=3.35.0
+python-dotenv>=1.0.0
